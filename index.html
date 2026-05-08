@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YEF CYBER ZODIAC WAR IA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    body { background: radial-gradient(circle at center, #0a0a2a, #000000); color: #00f0ff; font-family: 'Press Start 2P', sans-serif; overflow: hidden; }
+    .neon-text { text-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff, 0 0 40px #ff00ff; }
+    .status { padding: 12px 20px; border-radius: 9999px; font-size: 18px; margin-bottom: 15px; }
+    .connected { background: #00ff88; color: #000; animation: pulse 2s infinite; }
+    .card { transition: all 0.4s; }
+    .win { animation: winnerPulse 1s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } }
+    @keyframes winnerPulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="max-w-7xl mx-auto text-center w-full">
+    <div id="status" class="status connected mx-auto max-w-md">
+      ✅ CONECTADO A TIKFINITY - ESCUCHANDO...
+    </div>
+
+    <h1 class="text-5xl font-bold neon-text mb-2">YEF CYBER ZODIAC WAR IA</h1>
+    <p class="text-xl text-cyan-300">¡ELIGE TU SIGNO Y EVOLUCIONA CON REGALOS!</p>
+
+    <div id="timer" class="mb-8 text-5xl font-bold bg-black border-4 border-cyan-400 rounded-3xl p-6 inline-block neon-text">
+      Próxima batalla en: <span id="countdown" class="text-pink-400">05:00</span>
+    </div>
+
+    <div id="arena" class="grid grid-cols-4 gap-6"></div>
+
+    <div id="log" class="mt-8 h-64 bg-black/90 border-2 border-cyan-400 rounded-3xl p-6 text-left text-xs overflow-y-auto font-mono"></div>
+  </div>
+
+  <script>
+    const signos = [
+      {id: "aries", name: "Aries", emoji: "♈", color: "#ff0044"},
+      {id: "tauro", name: "Tauro", emoji: "♉", color: "#00ff88"},
+      {id: "geminis", name: "Géminis", emoji: "♊", color: "#00ffff"},
+      {id: "cancer", name: "Cáncer", emoji: "♋", color: "#4488ff"},
+      {id: "leo", name: "Leo", emoji: "♌", color: "#ffaa00"},
+      {id: "virgo", name: "Virgo", emoji: "♍", color: "#ff00ff"},
+      {id: "libra", name: "Libra", emoji: "♎", color: "#aaff00"},
+      {id: "escorpio", name: "Escorpio", emoji: "♏", color: "#8800ff"},
+      {id: "sagitario", name: "Sagitario", emoji: "♐", color: "#ff8800"},
+      {id: "capricornio", name: "Capricornio", emoji: "♑", color: "#00aaff"},
+      {id: "acuario", name: "Acuario", emoji: "♒", color: "#00ffcc"},
+      {id: "piscis", name: "Piscis", emoji: "♓", color: "#ff00aa"}
+    ];
+
+    let poderes = {};
+    let usuarios = {}; // username → signo
+
+    function initPoderes() { signos.forEach(s => poderes[s.id] = 100); }
+
+    function renderArena() {
+      const arena = document.getElementById('arena');
+      arena.innerHTML = '';
+      signos.forEach(signo => {
+        const percent = Math.min(poderes[signo.id] / 10, 100);
+        const html = `
+          <div class="card bg-black/80 border-4 border-cyan-400 rounded-3xl p-4 text-center">
+            <div class="text-6xl mb-2" style="color: ${signo.color}">${signo.emoji}</div>
+            <h3 class="text-lg font-bold">${signo.name}</h3>
+            <div class="h-3 bg-gray-900 rounded-full overflow-hidden border border-cyan-400 mt-3">
+              <div class="h-full bg-gradient-to-r from-cyan-400 to-pink-500" style="width: ${percent}%"></div>
+            </div>
+            <p class="text-xs mt-1 text-cyan-300">${Math.floor(poderes[signo.id])} POWER</p>
+          </div>`;
+        arena.innerHTML += html;
+      });
+    }
+
+    function addLog(texto) {
+      const log = document.getElementById('log');
+      const hora = new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      log.innerHTML += `<span class="text-[10px] text-gray-400">${hora}</span> ${texto}<br>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function conectarTikFinity() {
+      const ws = new WebSocket('ws://localhost:21213/');
+
+      ws.onopen = () => addLog('✅ WebSocket abierto - Conexión OK');
+
+      ws.onmessage = (event) => {
+        const raw = event.data;
+        addLog(`📡 RAW: ${raw.substring(0, 180)}...`);   // ← esto nos ayuda a ver qué manda TikFinity
+
+        try {
+          const msg = JSON.parse(raw);
+
+          // === DETECCIÓN DE COMANDO !sagitario etc ===
+          let comment = '';
+          let username = 'Usuario';
+
+          if (msg.data && msg.data.comment) comment = msg.data.comment.toLowerCase().trim();
+          else if (msg.comment) comment = msg.comment.toLowerCase().trim();
+          else if (msg.type === 'chat' && msg.data) comment = (msg.data.comment || '').toLowerCase().trim();
+
+          if (msg.data && msg.data.user) username = msg.data.user.uniqueId || msg.data.user.nickname || username;
+
+          if (comment.startsWith('!')) {
+            const signoId = comment.substring(1).trim();
+            const signo = signos.find(s => s.id === signoId);
+            if (signo) {
+              usuarios[username] = signo.id;
+              addLog(`🔥 <span style="color:#ff0">${username}</span> se unió a <span style="color:${signo.color}">${signo.name}</span>`);
+            }
+          }
+
+          // === DETECCIÓN DE REGALOS ===
+          let giftValue = 0;
+          if (msg.data && msg.data.gift) giftValue = msg.data.gift.diamondCount || 10;
+          else if (msg.gift) giftValue = msg.gift.diamondCount || 10;
+          else if (msg.type === 'gift' && msg.data && msg.data.gift) giftValue = msg.data.gift.diamondCount || 10;
+
+          if (giftValue > 0) {
+            const signoId = usuarios[username];
+            if (signoId) {
+              poderes[signoId] += giftValue * 8;
+              renderArena();
+              addLog(`💎 ${username} envió regalo → +${giftValue*8} POWER a ${signoId.toUpperCase()}`);
+            } else {
+              addLog(`💎 ${username} envió regalo pero no tiene signo`);
+            }
+          }
+
+        } catch(e) {
+          addLog('⚠️ Error al procesar mensaje');
+        }
+      };
+
+      ws.onerror = () => addLog('❌ Error en WebSocket');
+      ws.onclose = () => addLog('🔴 Conexión cerrada');
+    }
+
+    window.onload = () => {
+      initPoderes();
+      renderArena();
+      conectarTikFinity();
+      addLog('🎮 JUEGO INICIADO - Prueba !sagitario y regalos');
+    };
+  </script>
+</body>
+</html>
