@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YEF CYBER ZODIAC WAR IA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    body { 
+      background: radial-gradient(circle at center, #0a0a2a, #000000);
+      color: #00f0ff;
+      font-family: 'Press Start 2P', sans-serif;
+      overflow: hidden;
+    }
+    .neon-text { text-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff, 0 0 40px #ff00ff; }
+    .status { padding: 12px 20px; border-radius: 9999px; font-size: 18px; margin-bottom: 15px; }
+    .connected { background: #00ff88; color: #000; animation: pulse 2s infinite; }
+    .disconnected { background: #ff0044; color: white; }
+    .card { transition: all 0.4s; }
+    .win { animation: winnerPulse 1s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } }
+    @keyframes winnerPulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="max-w-7xl mx-auto text-center w-full">
+    <!-- ESTADO TIKFINITY -->
+    <div id="status" class="status disconnected mx-auto max-w-md">
+      🔴 Esperando TikFinity...
+    </div>
+
+    <h1 class="text-5xl font-bold neon-text mb-2">YEF CYBER ZODIAC WAR IA</h1>
+    <p class="text-xl text-cyan-300">¡ELIGE TU SIGNO Y EVOLUCIONA CON REGALOS!</p>
+
+    <div id="timer" class="mb-8 text-5xl font-bold bg-black border-4 border-cyan-400 rounded-3xl p-6 inline-block neon-text">
+      Próxima batalla en: <span id="countdown" class="text-pink-400">05:00</span>
+    </div>
+
+    <div id="arena" class="grid grid-cols-4 gap-6"></div>
+
+    <div id="log" class="mt-8 h-56 bg-black/80 border-2 border-cyan-400 rounded-3xl p-6 text-left text-sm overflow-y-auto font-mono"></div>
+  </div>
+
+  <script>
+    const signos = [
+      {id: "aries", name: "Aries", emoji: "♈", color: "#ff0044"},
+      {id: "tauro", name: "Tauro", emoji: "♉", color: "#00ff88"},
+      {id: "geminis", name: "Géminis", emoji: "♊", color: "#00ffff"},
+      {id: "cancer", name: "Cáncer", emoji: "♋", color: "#4488ff"},
+      {id: "leo", name: "Leo", emoji: "♌", color: "#ffaa00"},
+      {id: "virgo", name: "Virgo", emoji: "♍", color: "#ff00ff"},
+      {id: "libra", name: "Libra", emoji: "♎", color: "#aaff00"},
+      {id: "escorpio", name: "Escorpio", emoji: "♏", color: "#8800ff"},
+      {id: "sagitario", name: "Sagitario", emoji: "♐", color: "#ff8800"},
+      {id: "capricornio", name: "Capricornio", emoji: "♑", color: "#00aaff"},
+      {id: "acuario", name: "Acuario", emoji: "♒", color: "#00ffcc"},
+      {id: "piscis", name: "Piscis", emoji: "♓", color: "#ff00aa"}
+    ];
+
+    let poderes = {};
+    let usuarios = {};
+    let timerInterval = null;
+    let isBattling = false;
+
+    function initPoderes() {
+      signos.forEach(s => poderes[s.id] = 100);
+    }
+
+    function renderArena() {
+      const arena = document.getElementById('arena');
+      arena.innerHTML = '';
+      signos.forEach(signo => {
+        const percent = Math.min(poderes[signo.id] / 10, 100);
+        const html = `
+          <div class="card bg-black/80 border-4 border-cyan-400 rounded-3xl p-4 text-center">
+            <div class="text-6xl mb-2" style="color: ${signo.color}">${signo.emoji}</div>
+            <h3 class="text-lg font-bold">${signo.name}</h3>
+            <div class="power-bar mt-3 h-3 bg-gray-900 rounded-full overflow-hidden border border-cyan-400">
+              <div class="h-full bg-gradient-to-r from-cyan-400 to-pink-500" style="width: ${percent}%"></div>
+            </div>
+            <p class="text-xs mt-1 text-cyan-300">${Math.floor(poderes[signo.id])} POWER</p>
+          </div>`;
+        arena.innerHTML += html;
+      });
+    }
+
+    function addLog(texto, tipo = 'normal') {
+      const log = document.getElementById('log');
+      const hora = new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      let color = tipo === 'win' ? 'text-yellow-400' : tipo === 'gift' ? 'text-pink-400' : 'text-cyan-300';
+      log.innerHTML += `<span class="text-[10px] opacity-70">${hora}</span> <span class="${color}">${texto}</span><br>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function updateStatus(texto, conectado) {
+      const status = document.getElementById('status');
+      status.innerHTML = texto;
+      status.className = `status mx-auto max-w-md ${conectado ? 'connected' : 'disconnected'}`;
+    }
+
+    function battle() {
+      if (isBattling) return;
+      isBattling = true;
+
+      const ganadorId = Object.keys(poderes).reduce((a, b) => poderes[a] > poderes[b] ? a : b);
+      const ganador = signos.find(s => s.id === ganadorId);
+
+      addLog(`🏆 ¡${ganador.name.toUpperCase()} ES EL REY DEL ZODIACO! 🏆`, 'win');
+
+      // Efecto visual de victoria
+      const cards = document.querySelectorAll('.card');
+      cards.forEach(card => {
+        if (card.textContent.includes(ganador.emoji)) card.classList.add('win');
+      });
+
+      setTimeout(() => {
+        initPoderes();
+        renderArena();
+        cards.forEach(card => card.classList.remove('win'));
+        isBattling = false;
+      }, 4500);
+    }
+
+    function iniciarTimer() {
+      clearInterval(timerInterval);
+      let tiempo = 300; // 5 minutos
+
+      timerInterval = setInterval(() => {
+        tiempo--;
+        const min = Math.floor(tiempo / 60);
+        const seg = tiempo % 60;
+        document.getElementById('countdown').textContent = `${min.toString().padStart(2,'0')}:${seg.toString().padStart(2,'0')}`;
+
+        if (tiempo <= 0) {
+          battle();
+          tiempo = 300; // reinicia automáticamente
+        }
+      }, 1000);
+    }
+
+    function conectarTikFinity() {
+      const ws = new WebSocket('ws://localhost:21213/');
+      
+      ws.onopen = () => updateStatus('✅ CONECTADO A TIKFINITY - ¡Listo!', true);
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'chat' || msg.type === 'chat') {
+            const comment = (msg.data?.comment || msg.comment || '').toLowerCase().trim();
+            const username = msg.data?.user?.uniqueId || msg.data?.user?.nickname || 'Usuario';
+            if (comment.startsWith('!')) {
+              const signoId = comment.substring(1);
+              const signo = signos.find(s => s.id === signoId);
+              if (signo) {
+                usuarios[username] = signo.id;
+                addLog(`🔥 ${username} se unió a ${signo.name}`, 'gift');
+              }
+            }
+          }
+          if (msg.event === 'gift' || msg.type === 'gift') {
+            const username = msg.data?.user?.uniqueId || msg.data?.user?.nickname || 'Usuario';
+            const signoId = usuarios[username];
+            if (signoId) {
+              const valor = msg.data?.gift?.diamondCount || 10;
+              poderes[signoId] += valor * 8;
+              renderArena();
+              addLog(`💎 ${username} → +${valor*8} POWER a ${signoId.toUpperCase()}`, 'gift');
+            }
+          }
+        } catch(e) {}
+      };
+      ws.onerror = () => updateStatus('❌ TikFinity no detectado - Abre la app', false);
+    }
+
+    window.onload = () => {
+      initPoderes();
+      renderArena();
+      conectarTikFinity();
+      iniciarTimer();
+      addLog('🎮 YEF CYBER ZODIAC WAR IA INICIADO - ¡Que comience la guerra!', 'win');
+    };
+  </script>
+</body>
+</html>
