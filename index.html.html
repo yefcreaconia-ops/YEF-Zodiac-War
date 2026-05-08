@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YEF CYBER ZODIAC WAR IA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    body { 
+      background: radial-gradient(circle at center, #0a0a2a, #000000);
+      color: #00f0ff;
+      font-family: 'Press Start 2P', sans-serif;
+      overflow: hidden;
+    }
+    .neon-text { text-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff, 0 0 40px #ff00ff; }
+    .card { transition: all 0.3s; }
+    .card:hover { transform: scale(1.05); box-shadow: 0 0 30px #00f0ff; }
+    .power-bar { height: 12px; background: #112233; border: 2px solid #00f0ff; position: relative; overflow: hidden; }
+    .power-fill { height: 100%; background: linear-gradient(90deg, #00f0ff, #ff00ff); box-shadow: 0 0 15px #00f0ff; }
+    .glow { animation: glow 1.5s infinite alternate; }
+    @keyframes glow { from { text-shadow: 0 0 10px #00f0ff; } to { text-shadow: 0 0 30px #ff00ff; } }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="max-w-7xl mx-auto text-center">
+    <!-- LOGO Y TÍTULO -->
+    <div class="mb-8">
+      <h1 class="text-6xl font-bold neon-text glow">YEF CYBER ZODIAC WAR IA</h1>
+      <p class="text-xl text-cyan-300 mt-2">¡ELIGE TU SIGNO Y EVOLUCIONA CON REGALOS!</p>
+    </div>
+
+    <!-- TIMER -->
+    <div id="timer" class="mb-8 text-5xl font-bold bg-black border-4 border-cyan-400 rounded-3xl p-6 inline-block neon-text">
+      Próxima batalla en: <span id="countdown" class="text-pink-400">05:00</span>
+    </div>
+
+    <!-- ARENA DE GUERREROS -->
+    <div id="arena" class="grid grid-cols-4 gap-6"></div>
+
+    <!-- LOG DE ACCIONES -->
+    <div id="log" class="mt-8 h-48 bg-black/70 border border-cyan-400 rounded-2xl p-4 text-left text-sm overflow-y-auto font-mono"></div>
+  </div>
+
+  <script>
+    // ==================== CONFIGURACIÓN DE SIGNOS (estilo YEF cyber) ====================
+    const signos = [
+      {id: "aries", name: "Aries", emoji: "♈", color: "#ff0044"},
+      {id: "tauro", name: "Tauro", emoji: "♉", color: "#00ff88"},
+      {id: "geminis", name: "Géminis", emoji: "♊", color: "#00ffff"},
+      {id: "cancer", name: "Cáncer", emoji: "♋", color: "#4488ff"}, // Tu cangrejo YEF es el rey
+      {id: "leo", name: "Leo", emoji: "♌", color: "#ffaa00"},
+      {id: "virgo", name: "Virgo", emoji: "♍", color: "#ff00ff"},
+      {id: "libra", name: "Libra", emoji: "♎", color: "#aaff00"},
+      {id: "escorpio", name: "Escorpio", emoji: "♏", color: "#8800ff"},
+      {id: "sagitario", name: "Sagitario", emoji: "♐", color: "#ff8800"},
+      {id: "capricornio", name: "Capricornio", emoji: "♑", color: "#00aaff"},
+      {id: "acuario", name: "Acuario", emoji: "♒", color: "#00ffcc"},
+      {id: "piscis", name: "Piscis", emoji: "♓", color: "#ff00aa"}
+    ];
+
+    let poderes = {};
+    let usuarios = {}; // username → id del signo
+    let timerInterval;
+
+    // Inicializar poderes
+    function initPoderes() {
+      signos.forEach(s => poderes[s.id] = 100);
+    }
+
+    // Renderizar arena
+    function renderArena() {
+      const arena = document.getElementById('arena');
+      arena.innerHTML = '';
+      signos.forEach(signo => {
+        const powerPercent = Math.min(poderes[signo.id], 1000) / 10; // max 1000 power = 100%
+        const cardHTML = `
+          <div class="card bg-black/80 border-4 border-cyan-400 rounded-3xl p-4 text-center">
+            <div class="text-7xl mb-2" style="color: ${signo.color}">${signo.emoji}</div>
+            <h3 class="text-xl font-bold">${signo.name}</h3>
+            <div class="power-bar mt-3 rounded-full">
+              <div class="power-fill" style="width: ${powerPercent}%"></div>
+            </div>
+            <p class="text-xs mt-1 text-cyan-300">${Math.floor(poderes[signo.id])} POWER</p>
+          </div>`;
+        arena.innerHTML += cardHTML;
+      });
+    }
+
+    // Añadir al log
+    function addLog(texto, tipo = 'normal') {
+      const log = document.getElementById('log');
+      const hora = new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+      const color = tipo === 'gift' ? 'text-pink-400' : tipo === 'win' ? 'text-yellow-400' : 'text-cyan-300';
+      log.innerHTML += `<span class="text-[10px] opacity-70">${hora}</span> <span class="${color}">${texto}</span><br>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Conexión TikFinity (¡esto es lo que hace magia!)
+    function conectarTikFinity() {
+      const ws = new WebSocket('ws://localhost:21213/');
+      
+      ws.onopen = () => {
+        console.log('✅ YEF CYBER ZODIAC WAR conectado a TikFinity');
+        addLog('🚀 Conexión lista - ¡Elige tu signo con !aries, !cancer, etc.', 'gift');
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        
+        if (msg.event === 'chat') {
+          const comentario = msg.data.comment.toLowerCase().trim();
+          const username = msg.data.user.uniqueId || msg.data.user.nickname;
+          
+          if (comentario.startsWith('!')) {
+            const signoElegido = comentario.substring(1);
+            const signo = signos.find(s => s.id === signoElegido);
+            if (signo) {
+              usuarios[username] = signo.id;
+              addLog(`🔥 ${username} se unió a ${signo.name} !`, 'gift');
+            }
+          }
+        }
+        
+        if (msg.event === 'gift') {
+          const username = msg.data.user.uniqueId || msg.data.user.nickname;
+          const signoId = usuarios[username];
+          if (signoId) {
+            const valor = msg.data.gift.diamondCount || 10; // valor del regalo
+            poderes[signoId] += valor * 8; // ¡más regalos = más poder!
+            renderArena();
+            addLog(`💎 ${username} envió regalo → +${valor*8} POWER a ${signoId.toUpperCase()}`, 'gift');
+          }
+        }
+      };
+
+      ws.onerror = () => addLog('⚠️ Asegúrate que TikFinity Desktop esté abierto', 'normal');
+    }
+
+    // Batalla cada 5 minutos
+    function iniciarTimer() {
+      let tiempo = 300; // 5 minutos en segundos
+      clearInterval(timerInterval);
+      
+      timerInterval = setInterval(() => {
+        tiempo--;
+        const minutos = Math.floor(tiempo / 60);
+        const segundos = tiempo % 60;
+        document.getElementById('countdown').textContent = 
+          `${minutos.toString().padStart(2,'0')}:${segundos.toString().padStart(2,'0')}`;
+        
+        if (tiempo <= 0) {
+          // ¡BATALLA!
+          const ganadorId = Object.keys(poderes).reduce((a,b) => poderes[a] > poderes[b] ? a : b);
+          const ganador = signos.find(s => s.id === ganadorId);
+          
+          addLog(`🏆 ¡${ganador.name.toUpperCase()} ES EL REY DEL ZODIACO! 🏆`, 'win');
+          
+          // Animación de victoria
+          const cards = document.querySelectorAll('.card');
+          cards.forEach(c => {
+            if (c.textContent.includes(ganador.emoji)) c.style.transform = 'scale(1.3)';
+          });
+          
+          setTimeout(() => {
+            initPoderes(); // Reset para nueva ronda
+            renderArena();
+            tiempo = 300;
+          }, 4000);
+        }
+      }, 1000);
+    }
+
+    // INICIO DEL JUEGO
+    window.onload = () => {
+      initPoderes();
+      renderArena();
+      conectarTikFinity();
+      iniciarTimer();
+      addLog('🎮 YEF CYBER ZODIAC WAR IA INICIADO - ¡Que comience la guerra!', 'win');
+    };
+  </script>
+</body>
+</html>
